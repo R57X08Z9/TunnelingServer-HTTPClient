@@ -35,7 +35,6 @@ static void callback_a(void *arg, int status, int timeouts, unsigned char *abuf,
 				inet_ntop((int)host->h_addrtype, (const void *)host->h_addr_list[i], ip, sizeof(ip));
 				json_object_array_add(obj, json_object_new_string(ip));
 				printf("%s\n", ip);
-//				printf("\n%s\n", host->h_addr_list[i]);
 			}
 			free(addrttls);
 			free(naddrttls);
@@ -54,7 +53,7 @@ static void print_txt(struct ares_txt_reply *txt, void *arg) {
 	if (txt) {
 		struct json_object *obj = arg;
 		json_object_array_add(obj, json_object_new_string(txt->txt));
-		printf("txt_i = %s \n", txt->txt); // добовление в json arg
+		printf("txt_i = %s \n", txt->txt);
 		print_txt(txt->next, arg);
 	}
 }
@@ -75,61 +74,7 @@ static void callback_txt(void *arg, int status, int timeouts, unsigned char *abu
 		ares_free_data(txt_out);
 	}
 }
-/*
-static void *doit(void *a) 
-{ 
-    int rc, i; 
-    FCGX_Request request; 
-    char *server_name, *name_query, *type_query; 
 
-    if(FCGX_InitRequest(&request, socketId, 0) != 0) 
-    { 
-        printf("Can not init request\n"); 
-	    return NULL; 
-    } 
-
-    printf("Request is inited\n"); 
- 
-    for(;;) 
-    { 
-	printf("Try to accept new request\n");
-        static pthread_mutex_t accept_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-        pthread_mutex_lock(&accept_mutex);
-        rc = FCGX_Accept_r(&request);
-        pthread_mutex_unlock(&accept_mutex);
-
-        if(rc < 0)
-        {
-            printf("Can not accept new request\n");
-            break;
-        }
-
-        printf("request is accepted\n");
-
-//        server_name = FCGX_GetParam("SERVER_NAME", request.envp);
-//	json_obj = //получить json_obj из запроса CGX_GetParam("QUERY", request.envp);
-	name_query = FCGX_GetParam("NAME", request.envp); // достать из JSON 
-	type_query = FCGX_GetParam("TYPE", request.envp); // достать из JSON 
-
-
-	// возможно switch
-	if (type_query == "TXT") {
-	
-	}
-	if (type_query == "A") {
-
-	}
-
-        //закрыть текущее соединение 
-        FCGX_Finish_r(&request); 
-        
-        //завершающие действия - запись статистики, логгирование ошибок и т.п. 
-    } 
- 
-    return NULL; 
-} 
-*/
 static void wait_ares(ares_channel channel) {
 	printf("start wait_ares \n");
 	int nfds, count;
@@ -192,7 +137,6 @@ int main(void)
 	int rc; 
 	FCGX_Request request; 
 	char *server_name;
-//	int type_query; 
 
 	if(FCGX_InitRequest(&request, socketId, 0) != 0) 
 	{ 
@@ -204,7 +148,6 @@ int main(void)
  
 	for(;;) 
 	{
-
 		printf("Try to accept new request\n");
 		
 		rc = FCGX_Accept_r(&request);
@@ -218,8 +161,6 @@ int main(void)
 		printf("request is accepted\n");
 
 		struct json_object *obj;
-
-//		server_name = FCGX_GetParam("SERVER_NAME", request.envp);
 
 		int inSize = atoi(FCGX_GetParam("CONTENT_LENGTH", request.envp));
 		char *str = NULL;
@@ -239,25 +180,10 @@ int main(void)
 		const char *dns_query = json_object_get_string(tmp);
 
 		json_object_object_get_ex(obj, "type", &tmp);
-//		type_query = json_object_get_int(tmp);
 		const char *type_query = json_object_get_string(tmp);
 
 		tmp = json_object_new_array();
-/*
-		switch (type_query) {
-		case NS_T_A:
-			ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, tmp);
-			break;
-		case NS_T_TXT:
-			ares_query(channel, dns_query, ns_c_in, ns_t_txt, callback_txt, tmp);
-			break;
-		default:
-			break;
-		}
-*/
 
-//		printf("\n type_query: %s\n size: %d\n", type_query, sizeof(type_query));
-		
 		if (!strcmp(type_query, "A"))
 			ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, tmp);
 		if (!strcmp(type_query, "TXT"))
@@ -265,6 +191,7 @@ int main(void)
 
 		wait_ares(channel);
 
+		// сформировать и вернуть ответ
 		json_object_object_add(obj, "answer", tmp);
 		printf("\n---\n%s\n---\n", json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 		FCGX_PutS("Content-type: application/json\r\n", request.out);
@@ -272,24 +199,8 @@ int main(void)
 		FCGX_PutS(json_object_to_json_string(obj), request.out); 
 		//закрыть текущее соединение 
 		FCGX_Finish_r(&request); 
-        
-		//завершающие действия - запись статистики, логгирование ошибок и т.п. 
 	} 
 
-
-/*
-    //создаём рабочие потоки 
-    for(i = 0; i < THREAD_COUNT; i++) 
-    { 
-        pthread_create(&id[i], NULL, doit, NULL); 
-    } 
-    
-    //ждем завершения рабочих потоков 
-    for(i = 0; i < THREAD_COUNT; i++) 
-    { 
-        pthread_join(id[i], NULL); 
-    } 
-*/
 	printf("hello world \n it's end \n");
 	return 0; 
 }
