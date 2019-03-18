@@ -1,0 +1,11 @@
+server {
+		listen 8000;
+		server_name localhost;
+	
+		location / {
+			fastcgi_pass 127.0.0.1:9000;
+	
+			include fastcgi_params;
+		}
+	
+	}
