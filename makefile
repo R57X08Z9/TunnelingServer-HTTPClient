@@ -1,2 +1,2 @@
-all: main.c
-	gcc -o main main.c -lfcgi -lpthread -lcares -I/usr/local/include/json-c/ -ljson-c
+all: server.c
+	gcc -o server server.c -lfcgi -lpthread -lcares -I/usr/local/include/json-c/ -ljson-c
