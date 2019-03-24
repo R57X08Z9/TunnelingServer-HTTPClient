@@ -16,7 +16,7 @@
 
 static int socketId; 
 
-static void state_cb(void *data, int s, int read, int write) {}
+//static void state_cb(void *data, int s, int read, int write) {}
 
 static void callback_a(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
 
@@ -43,7 +43,7 @@ static void callback_a(void *arg, int status, int timeouts, unsigned char *abuf,
 			printf("parse error: %s\n", ares_strerror(status));
 		}
 
-		ares_free_hostent(host);	
+		ares_free_hostent(host);
 	} else {
 		printf("query error: %s\n", ares_strerror(status));
 	}
@@ -78,7 +78,6 @@ static void callback_txt(void *arg, int status, int timeouts, unsigned char *abu
 static void wait_ares(ares_channel channel) {
 	printf("start wait_ares \n");
 	int nfds, count;
-	int t = 0;
 	fd_set readers, writers;
 	struct timeval tv, *tvp;
 	for (;;) {
@@ -87,21 +86,17 @@ static void wait_ares(ares_channel channel) {
 		nfds = ares_fds(channel, &readers, &writers);
 		if (nfds == 0)
 			break;
+		/*поставить ограничени на время выполнения запроса*/
 		tvp = ares_timeout(channel, NULL, &tv);
 		count = select(nfds, &readers, &writers, NULL, tvp);
 		ares_process(channel, &readers, &writers);
-		t++;
-		printf("iter = %d \n", t);
-		if (t > 10) {
-			printf("time out \n");
-			break;
-		}
+		
 	}
 }
 
-int main(void) 
-{
-	// настройк c-ares
+int main(void) {
+
+	/* настройк c-ares */
 	ares_channel channel;
 	int status;
 	struct ares_options options;
@@ -113,54 +108,48 @@ int main(void)
 		return 1;
 	}
 
-	options.sock_state_cb = state_cb;
-	optmask |= ARES_OPT_SOCK_STATE_CB;
+//	options.sock_state_cb = state_cb;
+//	optmask |= ARES_OPT_SOCK_STATE_CB;
 
 	status = ares_init_options(&channel, &options, optmask);
 	if (status != ARES_SUCCESS) {
 		printf("ares_init_options: %s\n", ares_strerror(status));
 		return 1;
-	} 
+	}
 
-	// настройка FastCGI
-	FCGX_Init(); 
-	printf("Lib is inited\n"); 
+	/* настройка FastCGI */
+	FCGX_Init();
+	printf("Lib is inited\n");
 	    
-	socketId = FCGX_OpenSocket(SOCKET_PATH, 20); 
-	if(socketId < 0) 
-	{ 
-		return 1; 
+	socketId = FCGX_OpenSocket(SOCKET_PATH, 20);
+	if(socketId < 0) { 
+		return 1;
 	}
  
-	printf("Socket is opened\n"); 
+	printf("Socket is opened\n");
 	
-	int rc; 
-	FCGX_Request request; 
+	int rc;
+	FCGX_Request request;
 	char *server_name;
 
-	if(FCGX_InitRequest(&request, socketId, 0) != 0) 
-	{ 
-		printf("Can not init request\n"); 
-		return 1; 
+	if(FCGX_InitRequest(&request, socketId, 0) != 0) { 
+		printf("Can not init request\n");
+		return 1;
 	} 
 
-	printf("Request is inited\n"); 
+	printf("Request is inited\n");
  
-	for(;;) 
-	{
+	for(;;) {
+
 		printf("Try to accept new request\n");
 		
 		rc = FCGX_Accept_r(&request);
-
-		if(rc < 0)
-		{
+		if(rc < 0) {
 			printf("Can not accept new request\n");
 			break;
 		}
 
 		printf("request is accepted\n");
-
-		struct json_object *obj;
 
 		int inSize = atoi(FCGX_GetParam("CONTENT_LENGTH", request.envp));
 		char *str = NULL;
@@ -168,11 +157,10 @@ int main(void)
 		FCGX_GetStr(str, inSize, request.in);
 		str[inSize] = '\0';
 
-		printf("\n---\n%s\n---\n", str);
-
+		struct json_object *obj;
 		obj = json_tokener_parse(str);
 
-		printf("\n---\n%s\n---\n", json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+//		printf("\n---\n%s\n---\n", json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 
 		struct json_object *tmp;
 
@@ -181,6 +169,8 @@ int main(void)
 
 		json_object_object_get_ex(obj, "type", &tmp);
 		const char *type_query = json_object_get_string(tmp);
+
+		printf("get query: DNS = %s, Type = %s", dns_query, type_query);
 
 		tmp = json_object_new_array();
 
@@ -193,14 +183,14 @@ int main(void)
 
 		// сформировать и вернуть ответ
 		json_object_object_add(obj, "answer", tmp);
-		printf("\n---\n%s\n---\n", json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+//		printf("\n---\n%s\n---\n", json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 		FCGX_PutS("Content-type: application/json\r\n", request.out);
 		FCGX_PutS("\r\n", request.out);
-		FCGX_PutS(json_object_to_json_string(obj), request.out); 
-		//закрыть текущее соединение 
-		FCGX_Finish_r(&request); 
+		FCGX_PutS(json_object_to_json_string(obj), request.out);
+		//закрыть текущее соединение
+		FCGX_Finish_r(&request);
 	} 
 
-	printf("hello world \n it's end \n");
+	printf("\nexit");
 	return 0; 
 }
