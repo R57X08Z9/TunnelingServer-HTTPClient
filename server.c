@@ -10,7 +10,10 @@
 
 #include <json.h>
 
+#include <pthread.h>
+
 #define SOCKET_PATH "127.0.0.1:9000"
+#define THREAD_COUNT 2
 #define TIME_LIMIT_IN_SEC 5
 #define IS_DEBUG "-d"
 
@@ -141,10 +144,12 @@ int sent_requ(struct json_object *obj, ares_channel channel) {
 	const char *type_query = json_object_get_string(sub_obj);
 	
 	if (is_debug) {
-		fprintf(stderr, "get query: DNS = %s:, Type = %s:\n", dns_query, type_query); // отладочная
+		fprintf(stderr, "get query: DNS = %s:, Type = %s:\n", dns_query, type_query);
 	}
 
 	struct json_object *response_obj = json_object_new_object();
+
+	status = 0;
 
 	if (!strcmp(type_query, "A")) {
 		ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, response_obj);
@@ -154,23 +159,25 @@ int sent_requ(struct json_object *obj, ares_channel channel) {
 		ares_query(channel, dns_query, ns_c_in, ns_t_txt, callback_txt, response_obj);
 		status = 1;
 	}
-	
-	wait_ares(channel);
+
+	if (status == 0) {
+		json_object_object_add(response_obj, "status", json_object_new_int(1));
+		json_object_object_add(response_obj, "error", json_object_new_string("incorrect type query"));
+	} else {
+		wait_ares(channel);
+	}
+
 	if (is_debug) {
 		fprintf(stderr, "wait_ares complit\nstatus: %d\n", status);
 	}
-	if (status) {
-		json_object_object_add(obj, "response", response_obj);
-	}
+
+	json_object_object_add(obj, "response", response_obj);
 
 	return status;
 }
 
-int main(int ac, char *av[]) {
-	if (ac > 1) {
-		is_debug = !strcmp(av[1], IS_DEBUG);
-		fprintf(stderr, "%d, %s\n", is_debug, "debag mod on");
-	}
+static void *easy_thread(void *arg) {
+
 	/* настройк c-ares */
 	ares_channel channel;
 	int status;
@@ -181,7 +188,7 @@ int main(int ac, char *av[]) {
 	if (status != ARES_SUCCESS) {
 		printf("ares_library init failed\n");
 		fprintf(stderr, "ares_library_init: %s\n", ares_strerror(status));
-		return 1;
+		return NULL;
 	} else {
 		printf("ares_library init complit\n");
 	}
@@ -190,29 +197,17 @@ int main(int ac, char *av[]) {
 	if (status != ARES_SUCCESS) {
 		printf("ares_init_options failed\n");
 		fprintf(stderr, "ares_init_options: %s\n", ares_strerror(status));
-		return 1;
+		return NULL;
 	} else {
 		printf("ares_init_options complit\n");
 	}
 
-	/* настройка FastCGI */
-	FCGX_Init();
-	printf("Lib is inited\n");
-	    
-	socket_id = FCGX_OpenSocket(SOCKET_PATH, 20);
-	if(socket_id < 0) { 
-		return 1;
-	}
- 
-	printf("Socket is opened\n");
-	
 	int rc;
 	FCGX_Request request;
-	char *server_name;
 
 	if(FCGX_InitRequest(&request, socket_id, 0) != 0) { 
 		printf("Can not init request\n");
-		return 1;
+		return NULL;
 	} 
 
 	printf("Request is inited\n");
@@ -275,15 +270,51 @@ int main(int ac, char *av[]) {
 			FCGX_PutS("Content-type: application/json\r\n", request.out);
 			FCGX_PutS("\r\n", request.out);
 			FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
+			printf("query sucses\n");
 		} else {
 			FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
+			if (is_debug) {
+				fprintf(stderr, "Status: 400 Bad Request\n");
+			}
 		}
 
 		/* закрыть текущее соединение */
 		FCGX_Finish_r(&request);
 		json_object_put(obj);
 		printf("query complit\n");
-	} 
+	}
+	return NULL;
+}
+
+int main(int ac, char *av[]) {
+
+	if (ac > 1) {
+		is_debug = !strcmp(av[1], IS_DEBUG);
+		fprintf(stderr, "%d, %s\n", is_debug, "debag mod on");
+	}
+
+	/* настройка FastCGI */
+	FCGX_Init();
+	printf("Lib is inited\n");
+	    
+	socket_id = FCGX_OpenSocket(SOCKET_PATH, 20);
+	if(socket_id < 0) { 
+		return 1;
+	}
+ 
+	printf("Socket is opened\n");
+
+	pthread_t id[THREAD_COUNT];
+	
+	for (int i = 0; i < THREAD_COUNT; i++) {
+		pthread_create(&id[i], NULL, easy_thread, NULL);
+	}
+
+	for (int i = 0; i < THREAD_COUNT; i++) {
+		pthread_join(id[i], NULL);
+	}
+	
+	easy_thread(NULL);
 
 	printf("\nexit");
 	return 0; 
