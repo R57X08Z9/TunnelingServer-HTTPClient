@@ -6,17 +6,17 @@ struct buf_memory {
 	size_t size;
 };
 
-struct responce {
-	char *type;
-	char *dns;
+struct response {
+	const char *type;
+	const char *dns;
 	int status;
-	char *error;
-	char **answer;
+	const char **answer;
+	const char *error;
 	int count_string_answer;
 };
 
 static size_t write_answer(void *ptr, size_t size, size_t nmemd, void* arg);
 
-responce sent_dns_query(const char *dns, const char *type);
+int sent_dns_query(struct response *res, const char *dns, const char *type);
 
 #endif

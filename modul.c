@@ -25,12 +25,15 @@ static size_t write_answer(void *contents, size_t size, size_t nmemd, void* arg)
 	return in_size;
 }
 
-int sent_dns_query(const char *dns, const char *type) {
-
+int sent_dns_query(struct response *res, const char *dns, const char *type) {
+	
+//	struct response res;
 	int status = 1;
 	struct buf_memory in_data;
 	in_data.memory = malloc(1);
 	in_data.size = 0;
+
+	res->status = -1;
 
 	CURL *curl_handle = curl_easy_init();
 
@@ -56,7 +59,7 @@ int sent_dns_query(const char *dns, const char *type) {
 	curl_easy_setopt(curl_handle, CURLOPT_POST, 1);
 	curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, str);
 
-	CURLcode res = curl_easy_perform(curl_handle);
+	CURLcode res_curl = curl_easy_perform(curl_handle);
 
 	json_object_put(obj);
 	
@@ -67,48 +70,71 @@ int sent_dns_query(const char *dns, const char *type) {
 
 	status = json_object_object_get_ex(obj, "type", &sub_obj);
 	if (status == 0) {
-		return 0;
+		fprintf(stderr, "\"type\" not find\n");
+		return 1;
 	}
-	const char *type_query = json_object_get_string(sub_obj);
+	res->type = json_object_get_string(sub_obj);
 
 	status = json_object_object_get_ex(obj, "dns", &sub_obj);
 	if (status == 0) {
-		return 0;
+		fprintf(stderr, "\"dns\" not find\n");
+		return 1;
 	}
-	const char *dns_query = json_object_get_string(sub_obj);
+	res->dns = json_object_get_string(sub_obj);
 
 	status = json_object_object_get_ex(obj, "response", &sub_obj);
 	if (status == 0) {
-		return 0;
+		fprintf(stderr, "\"response\" not find\n");
+		return 1;
 	}
 
 	status = json_object_object_get_ex(sub_obj, "status", &sub2_obj);
 	if (status == 0) {
-		return 0;
+		fprintf(stderr, "\"status\" not find\n");
+		return 1;
 	}
+
 	int status_query = json_object_get_int(sub2_obj);
-	printf("status_query: %d\n", status_query);
+	
+	char **ans2 = NULL;
+
+/*	printf("status_query: %d\n", status_query); */
 	if (status_query == 0) {
+		
+		res->error = NULL;
+
 		status = json_object_object_get_ex(sub_obj, "answer", &sub2_obj);
 		if (status == 0) {
-			return 0;
+			fprintf(stderr, "\"answer\" not find\n");
+			return 1;
 		}
-		printf("%s, %s, %d, ", type_query, dns_query, status_query);
+/*		printf("%s, %s, %d, ", type_query, dns_query, status_query);*/
+
+		res->answer = calloc(json_object_array_length(sub2_obj), sizeof(char *));
+
+		res->count_string_answer = json_object_array_length(sub2_obj);
+		
 		struct json_object *answer = NULL;
 		for (int i = 0; i < json_object_array_length(sub2_obj); i++) {
 			answer = json_object_array_get_idx(sub2_obj, i);
-			printf("%s, ", json_object_to_json_string(answer));
+			res->answer[i] = json_object_to_json_string(answer);
+/*			printf("%s\n", json_object_to_json_string(answer));
+			printf("%s\n", res->answer[i]);*/
 		}
-		printf("\n");
 	} else {
+
 		status = json_object_object_get_ex(sub_obj, "error", &sub2_obj);
 		if (status == 0) {
-			return 0;
+			fprintf(stderr, "\"error\" not find\n");
+			return 1;
 		}
-		const char *error_query = json_object_get_string(sub2_obj);
-		printf("%s, %s, %d, %s\n", type_query, dns_query, &status_query, error_query);
+
+		res->error = json_object_to_json_string(sub2_obj);
+/*		printf("%s, %s, %d, %s\n", type_query, dns_query, &status_query, error_query); */
 	}
+
+	res->status = status_query;
 	curl_easy_cleanup(curl_handle);
 	json_object_put(obj);
-	return status;
+	return 0;
 }

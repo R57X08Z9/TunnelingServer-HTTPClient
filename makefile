@@ -3,7 +3,7 @@ all: client server
 server: server.c
 	gcc -o server server.c -lfcgi -lpthread -lcares -I/usr/local/include/json-c/ -ljson-c
 
-client: client.o modul.o
+client: modul.o client.o
 	gcc -o client client.o modul.o -ljson-c -lcurl
 
 client.o: client.c
