@@ -11,3 +11,6 @@ client.o: client.c
 
 modul.o: modul.c modul.h
 	gcc -c modul.c -I/usr/local/include/json-c/
+
+libmodul.so: modul.o
+	gcc -shared -o libmodul.so modul.o
