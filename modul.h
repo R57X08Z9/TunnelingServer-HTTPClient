@@ -7,11 +7,11 @@ struct buf_memory {
 };
 
 struct response {
-	const char *type;
-	const char *dns;
+	char *type;
+	char *dns;
 	int status;
-	const char **answer;
-	const char *error;
+	char **answer;
+	char *error;
 	int count_string_answer;
 };
 

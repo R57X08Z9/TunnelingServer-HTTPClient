@@ -68,19 +68,28 @@ int sent_dns_query(struct response *res, const char *dns, const char *type) {
 	struct json_object *sub_obj = NULL;
 	struct json_object *sub2_obj = NULL;
 
+	const char *p_str = NULL;
+	int p_str_len;
+
 	status = json_object_object_get_ex(obj, "type", &sub_obj);
 	if (status == 0) {
 		fprintf(stderr, "\"type\" not find\n");
 		return 1;
 	}
-	res->type = json_object_get_string(sub_obj);
+	p_str = json_object_get_string(sub_obj);
+	p_str_len = strlen(p_str);
+	res->type = calloc(p_str_len, sizeof(char));
+	strncpy(res->type, p_str, p_str_len);
 
 	status = json_object_object_get_ex(obj, "dns", &sub_obj);
 	if (status == 0) {
 		fprintf(stderr, "\"dns\" not find\n");
 		return 1;
 	}
-	res->dns = json_object_get_string(sub_obj);
+	p_str = json_object_get_string(sub_obj);
+	p_str_len = strlen(p_str);
+	res->dns = calloc(p_str_len, sizeof(char));
+	strncpy(res->dns, p_str, p_str_len);
 
 	status = json_object_object_get_ex(obj, "response", &sub_obj);
 	if (status == 0) {
@@ -115,9 +124,13 @@ int sent_dns_query(struct response *res, const char *dns, const char *type) {
 		res->count_string_answer = json_object_array_length(sub2_obj);
 		
 		struct json_object *answer = NULL;
+
 		for (int i = 0; i < json_object_array_length(sub2_obj); i++) {
 			answer = json_object_array_get_idx(sub2_obj, i);
-			res->answer[i] = json_object_to_json_string(answer);
+			p_str = json_object_to_json_string(answer);
+			p_str_len = strlen(p_str);
+			res->answer[i] = calloc(p_str_len, sizeof(char));
+			strncpy(res->answer[i], p_str, p_str_len);
 /*			printf("%s\n", json_object_to_json_string(answer));
 			printf("%s\n", res->answer[i]);*/
 		}
@@ -128,8 +141,10 @@ int sent_dns_query(struct response *res, const char *dns, const char *type) {
 			fprintf(stderr, "\"error\" not find\n");
 			return 1;
 		}
-
-		res->error = json_object_to_json_string(sub2_obj);
+		p_str = json_object_get_string(sub2_obj);
+		p_str_len = strlen(p_str);
+		res->error = calloc(p_str_len, sizeof(char));
+		strncpy(res->error, p_str, p_str_len);
 /*		printf("%s, %s, %d, %s\n", type_query, dns_query, &status_query, error_query); */
 	}
 
