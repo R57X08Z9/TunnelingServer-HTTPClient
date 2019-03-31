@@ -50,12 +50,10 @@ int main(int ac, char *av[]) {
 			printf("%s, %s, %d, ", resp->type, resp->dns, resp->status);
 			fprintf(output_file, "%s, %s, %d, ", resp->type, resp->dns, resp->status);
 			if (resp->status == 0) {
-				for (int i = 0; i < resp->count_string_answer - 1; i++) {
-					fprintf(output_file, "%s, ", resp->answer[i]);
-					printf("%s, ", resp->answer[i]);
+				for (int i = 0; i < resp->count_string_answer; i++) {
+					fprintf(output_file, "%s ", resp->answer[i]);
+					printf("%s ", resp->answer[i]);
 				}
-				fprintf(output_file, "%s\n", resp->answer[resp->count_string_answer - 1]);
-				printf("%s\n", resp->answer[resp->count_string_answer - 1]);
 			} else {
 				fprintf(output_file, "%s", resp->error);
 				printf("%s\n", resp->error);
@@ -64,6 +62,7 @@ int main(int ac, char *av[]) {
 			fprintf(stderr, "dns request faild");
 		}
 		free(resp);
+		printf("\n");
 	}
 
 	fclose(input_file);
