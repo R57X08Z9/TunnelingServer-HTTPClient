@@ -47,8 +47,7 @@ int main(int ac, char *av[]) {
 		printf("%s, %s, %d, ", resp->type, resp->dns, resp->status);
 		fprintf(output_file, "%s, %s, %d, ", resp->type, resp->dns, resp->status);
 
-		if (resp->status) {
-			
+		if (resp->status == 0) {
 			for (int i = 0; i < resp->count_string_answer; i++) {
 				fprintf(output_file, "%s ", resp->answer[i]);
 				printf("%s ", resp->answer[i]);
