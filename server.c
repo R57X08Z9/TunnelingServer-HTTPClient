@@ -126,18 +126,18 @@ static void wait_ares(ares_channel channel) {
 	}
 }
 
-int sent_requ(struct json_object *obj, ares_channel channel) {
+int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares_channel channel) {
 	int status = 0;
 
 	struct json_object *sub_obj = NULL;
 
-	status = json_object_object_get_ex(obj, "dns", &sub_obj);
+	status = json_object_object_get_ex(obj_in, "dns", &sub_obj);
 	if (status == 0) {
 		return 0;
 	}
 	const char *dns_query = json_object_get_string(sub_obj);
 
-	status = json_object_object_get_ex(obj, "type", &sub_obj);
+	status = json_object_object_get_ex(obj_in, "type", &sub_obj);
 	if (status == 0) {
 		return 0;
 	}
@@ -146,8 +146,6 @@ int sent_requ(struct json_object *obj, ares_channel channel) {
 	if (is_debug) {
 		fprintf(stderr, "get query: DNS = %s:, Type = %s:\n", dns_query, type_query);
 	}
-
-	struct json_object *response_obj = json_object_new_object();
 
 	status = 0;
 
@@ -171,14 +169,13 @@ int sent_requ(struct json_object *obj, ares_channel channel) {
 		fprintf(stderr, "wait_ares complit\nstatus: %d\n", status);
 	}
 
-	json_object_object_add(obj, "response", response_obj);
-
 	return status;
 }
 
-static void *easy_thread(void *arg) {
+static void *handler_dns_request(void *arg) {
 
 	/* настройк c-ares */
+
 	ares_channel channel;
 	int status;
 	struct ares_options options;
@@ -214,9 +211,12 @@ static void *easy_thread(void *arg) {
  
 	for(;;) {
 
+		static pthread_mutex_t accept_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 		printf("Try to accept new request\n");
-		
+		pthread_mutex_lock(&accept_mutex);
 		rc = FCGX_Accept_r(&request);
+		pthread_mutex_unlock(&accept_mutex);
 		if(rc < 0) {
 			printf("Can not accept new request\n");
 			break;
@@ -246,6 +246,7 @@ static void *easy_thread(void *arg) {
 		}
 
 		struct json_object *obj = NULL;
+		struct json_object *response_obj = json_object_new_object();
 		obj = json_tokener_parse(str_in);
 
 		free(str_in);
@@ -258,7 +259,9 @@ static void *easy_thread(void *arg) {
 								JSON_C_TO_STRING_PRETTY));
 		}
 		
-		if (sent_requ(obj, channel)) {
+		if (send_requ(obj, response_obj, channel)) {
+
+			json_object_object_add(obj, "response", response_obj);
 		
 			if (is_debug) {
 				fprintf(stderr, 
@@ -281,7 +284,7 @@ static void *easy_thread(void *arg) {
 		/* закрыть текущее соединение */
 		FCGX_Finish_r(&request);
 		json_object_put(obj);
-		printf("query complit\n");
+		printf("query complete\n");
 	}
 	return NULL;
 }
@@ -307,14 +310,12 @@ int main(int ac, char *av[]) {
 	pthread_t id[THREAD_COUNT];
 	
 	for (int i = 0; i < THREAD_COUNT; i++) {
-		pthread_create(&id[i], NULL, easy_thread, NULL);
+		pthread_create(&id[i], NULL, handler_dns_request, NULL);
 	}
 
 	for (int i = 0; i < THREAD_COUNT; i++) {
 		pthread_join(id[i], NULL);
 	}
-	
-	easy_thread(NULL);
 
 	printf("\nexit");
 	return 0; 

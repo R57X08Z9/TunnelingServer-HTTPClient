@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "modul.h"
+#include "dns_query_lib.h"
 #include <string.h>
 
 int main(int ac, char *av[]) {
@@ -41,27 +41,24 @@ int main(int ac, char *av[]) {
 
 		fscanf(input_file, "%254s", dns_q);
 	
-		struct response *resp = calloc(1, sizeof(struct response));
-		int status = sent_dns_query(resp, dns_q, type_q);
+		dns_response_t *resp = calloc(1, sizeof(dns_response_t));
+		send_dns_query(resp, dns_q, type_q, "localhost", 8000);
 
-		printf("%d\n", status);
+		printf("%s, %s, %d, ", resp->type, resp->dns, resp->status);
+		fprintf(output_file, "%s, %s, %d, ", resp->type, resp->dns, resp->status);
 
-		if (status == 0) {
-			printf("%s, %s, %d, ", resp->type, resp->dns, resp->status);
-			fprintf(output_file, "%s, %s, %d, ", resp->type, resp->dns, resp->status);
-			if (resp->status == 0) {
-				for (int i = 0; i < resp->count_string_answer; i++) {
-					fprintf(output_file, "%s ", resp->answer[i]);
-					printf("%s ", resp->answer[i]);
-				}
-			} else {
-				fprintf(output_file, "%s", resp->error);
-				printf("%s\n", resp->error);
-			}
+		if (resp->status) {
+			
+			for (int i = 0; i < resp->count_string_answer; i++) {
+				fprintf(output_file, "%s ", resp->answer[i]);
+				printf("%s ", resp->answer[i]);
+			} 
 		} else {
-			fprintf(stderr, "dns request faild");
+			fprintf(output_file, "%s", resp->error);
+			printf("%s\n", resp->error);
 		}
-		free(resp);
+
+//		free_dns_response_s(resp);
 		printf("\n");
 	}
 
