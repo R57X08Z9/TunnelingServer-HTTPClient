@@ -12,10 +12,10 @@ int main(int ac, char *av[]) {
 	FILE *output_file = NULL;
 
 	if (ac > 2) {
-		name_input_file = malloc(sizeof(av[1]));
-		strcpy(name_input_file, av[1]);
-		name_output_file = malloc(sizeof(av[2]));
-		strcpy(name_output_file, av[2]);
+
+		name_input_file = av[1];
+		name_output_file = av[2];
+
 		input_file = fopen(name_input_file, "r");
 		if (input_file == NULL) {
 			printf("file %s can't open to read\n", name_input_file);
@@ -32,11 +32,8 @@ int main(int ac, char *av[]) {
 		return 0;
 	}
 
-	char *type_q = NULL;
-	type_q = calloc(4, sizeof(char));
-
-	char *dns_q = NULL;
-	dns_q = calloc(255, sizeof(char));
+	char type_q[4];
+	char dns_q[255];
 
 	while (!feof(input_file)) {
 
@@ -63,7 +60,10 @@ int main(int ac, char *av[]) {
 				fprintf(output_file, "%s", resp->error);
 				printf("%s\n", resp->error);
 			}
+		} else {
+			fprintf(stderr, "dns request faild");
 		}
+		free(resp);
 	}
 
 	fclose(input_file);
