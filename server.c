@@ -128,7 +128,6 @@ static void wait_ares(ares_channel channel) {
 		tvp = ares_timeout(channel, &tvmax, &tv);
 		count = select(nfds, &readers, &writers, NULL, tvp);
 		ares_process(channel, &readers, &writers);
-		free(tvp);
 	}
 }
 
@@ -165,11 +164,11 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 	if (!is_error) {
 		status = 0;
 
-		if (!strcmp(type_query, "A")) {
+		if (strcmp(type_query, "A") == 0) {
 			ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, response_obj);
 			status = 1;
 		}
-		if (!strcmp(type_query, "TXT")) {
+		if (strcmp(type_query, "TXT") == 0) {
 			ares_query(channel, dns_query, ns_c_in, ns_t_txt, callback_txt, response_obj);
 			status = 1;
 		}
@@ -190,8 +189,6 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 	} else {
 		return status;
 	}
-	free(type_query);
-	free(dns_query);
 }
 
 static void *handler_dns_request(void *arg) {
@@ -307,7 +304,6 @@ static void *handler_dns_request(void *arg) {
 			/* закрыть текущее соединение */
 			FCGX_Finish_r(&request);
 			json_object_put(obj);
-			json_object_put(response_obj);
 			printf("query complete\n");
 		}
 	}
