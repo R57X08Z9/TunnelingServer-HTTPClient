@@ -40,16 +40,21 @@ void send_dns_query(dns_response_t *res, const char *dns, const char *type, cons
 
 	int is_error = 0;
 	int status = 1;
+	int status_query;
+	int p_str_len;
+	
+	const char *p_str = NULL;
+	
 	struct buf_memory in_data;
-	in_data.memory = NULL;
-	in_data.size = 0;
+	
 	struct json_object *obj = NULL;
-	obj = json_object_new_object();
 	struct json_object *sub_obj = NULL;
 	struct json_object *sub2_obj = NULL;
-	const char *p_str = NULL;
-	int p_str_len;
-	int status_query;
+	
+	
+	obj = json_object_new_object();
+	in_data.memory = NULL;
+	in_data.size = 0;
 
 	res->status = -1;
 
@@ -175,5 +180,4 @@ void send_dns_query(dns_response_t *res, const char *dns, const char *type, cons
 	free(in_data.memory);
 
 	json_object_put(obj);
-	return;
 }
