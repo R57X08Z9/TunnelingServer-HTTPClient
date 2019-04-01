@@ -57,7 +57,7 @@ int main(int ac, char *av[]) {
 			printf("%s\n", resp->error);
 		}
 
-//		free_dns_response_s(resp);
+		free_dns_response_s(resp);
 		printf("\n");
 	}
 
