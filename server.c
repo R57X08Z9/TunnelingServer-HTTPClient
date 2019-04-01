@@ -127,164 +127,176 @@ static void wait_ares(ares_channel channel) {
 }
 
 int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares_channel channel) {
+
 	int status = 0;
+	int is_error = 0;
+	const char *type_query;
+	const char *dns_query;
 
 	struct json_object *sub_obj = NULL;
 
 	status = json_object_object_get_ex(obj_in, "dns", &sub_obj);
 	if (status == 0) {
-		return 0;
+		is_error = 1;
 	}
-	const char *dns_query = json_object_get_string(sub_obj);
-
-	status = json_object_object_get_ex(obj_in, "type", &sub_obj);
-	if (status == 0) {
-		return 0;
+	dns_query = json_object_get_string(sub_obj);
+	
+	if (!is_error) {
+		status = json_object_object_get_ex(obj_in, "type", &sub_obj);
+		if (status == 0) {
+			is_error = 1;
+		}
+		type_query = json_object_get_string(sub_obj);
 	}
-	const char *type_query = json_object_get_string(sub_obj);
 	
 	if (is_debug) {
 		fprintf(stderr, "get query: DNS = %s:, Type = %s:\n", dns_query, type_query);
 	}
+	if (!is_error) {
+		status = 0;
 
-	status = 0;
+		if (!strcmp(type_query, "A")) {
+			ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, response_obj);
+			status = 1;
+		}
+		if (!strcmp(type_query, "TXT")) {
+			ares_query(channel, dns_query, ns_c_in, ns_t_txt, callback_txt, response_obj);
+			status = 1;
+		}
 
-	if (!strcmp(type_query, "A")) {
-		ares_query(channel, dns_query, ns_c_in, ns_t_a, callback_a, response_obj);
-		status = 1;
+		if (status == 0) {
+			json_object_object_add(response_obj, "status", json_object_new_int(1));
+			json_object_object_add(response_obj, "error", json_object_new_string("incorrect type query"));
+		} else {
+			wait_ares(channel);
+		}
+
+		if (is_debug) {
+			fprintf(stderr, "wait_ares complit\nstatus: %d\n", status);
+		}
 	}
-	if (!strcmp(type_query, "TXT")) {
-		ares_query(channel, dns_query, ns_c_in, ns_t_txt, callback_txt, response_obj);
-		status = 1;
-	}
-
-	if (status == 0) {
-		json_object_object_add(response_obj, "status", json_object_new_int(1));
-		json_object_object_add(response_obj, "error", json_object_new_string("incorrect type query"));
+	if (is_error) {
+		return is_error;
 	} else {
-		wait_ares(channel);
+		return status;
 	}
-
-	if (is_debug) {
-		fprintf(stderr, "wait_ares complit\nstatus: %d\n", status);
-	}
-
-	return status;
 }
 
 static void *handler_dns_request(void *arg) {
 
 	/* настройк c-ares */
-
+	int is_error = 0;
 	ares_channel channel;
 	int status;
 	struct ares_options options;
 	int optmask = 0;
+	int rc;
+	FCGX_Request request;
 
 	status = ares_library_init(ARES_LIB_INIT_ALL);
 	if (status != ARES_SUCCESS) {
 		printf("ares_library init failed\n");
 		fprintf(stderr, "ares_library_init: %s\n", ares_strerror(status));
-		return NULL;
+		is_error = 1;
 	} else {
 		printf("ares_library init complit\n");
 	}
-
+	if (!is_error) {
 	status = ares_init_options(&channel, &options, optmask);
-	if (status != ARES_SUCCESS) {
-		printf("ares_init_options failed\n");
-		fprintf(stderr, "ares_init_options: %s\n", ares_strerror(status));
-		return NULL;
-	} else {
-		printf("ares_init_options complit\n");
+		if (status != ARES_SUCCESS) {
+			printf("ares_init_options failed\n");
+			fprintf(stderr, "ares_init_options: %s\n", ares_strerror(status));
+			is_error = 1;
+		} else {
+			printf("ares_init_options complit\n");
+		}
 	}
-
-	int rc;
-	FCGX_Request request;
-
-	if(FCGX_InitRequest(&request, socket_id, 0) != 0) { 
-		printf("Can not init request\n");
-		return NULL;
-	} 
-
-	printf("Request is inited\n");
- 
-	for(;;) {
-
-		static pthread_mutex_t accept_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-		printf("Try to accept new request\n");
-		pthread_mutex_lock(&accept_mutex);
-		rc = FCGX_Accept_r(&request);
-		pthread_mutex_unlock(&accept_mutex);
-		if(rc < 0) {
-			printf("Can not accept new request\n");
-			break;
+	if (!is_error) {
+		if(FCGX_InitRequest(&request, socket_id, 0) != 0) { 
+			printf("Can not init request\n");
+			is_error = 1;
 		}
+	}
+	if (!is_error) {
+		printf("Request is inited\n");
+	 
+		for(;;) {
 
-		printf("request is accepted\n");
+			static pthread_mutex_t accept_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-		char *str_len_content = FCGX_GetParam("CONTENT_LENGTH", request.envp);
-		if (str_len_content == NULL) {
-			if (is_debug) {
-				fprintf(stderr, "Status: 400 Bad Request\n");
+			printf("Try to accept new request\n");
+			pthread_mutex_lock(&accept_mutex);
+			rc = FCGX_Accept_r(&request);
+			pthread_mutex_unlock(&accept_mutex);
+			if(rc < 0) {
+				printf("Can not accept new request\n");
+				break;
 			}
-			FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-			FCGX_Finish_r(&request);
-			continue;
-		}
-		int in_size = atoi(str_len_content);
-		char *str_in = NULL;
-		str_in = calloc(in_size + 1, sizeof(char));
-		FCGX_GetStr(str_in, in_size, request.in);
-		str_in[in_size] = '\0';
 
-		if (is_debug) {
-			printf( 
-				"\n---\n%s\n---\n",
-				str_in);
-		}
+			printf("request is accepted\n");
 
-		struct json_object *obj = NULL;
-		struct json_object *response_obj = json_object_new_object();
-		obj = json_tokener_parse(str_in);
+			char *str_len_content = FCGX_GetParam("CONTENT_LENGTH", request.envp);
+			if (str_len_content == NULL) {
+				if (is_debug) {
+					fprintf(stderr, "Status: 400 Bad Request\n");
+				}
+				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
+				FCGX_Finish_r(&request);
+				continue;
+			}
+			int in_size = atoi(str_len_content);
+			char *str_in = NULL;
+			str_in = calloc(in_size + 1, sizeof(char));
+			FCGX_GetStr(str_in, in_size, request.in);
+			str_in[in_size] = '\0';
 
-		free(str_in);
+			if (is_debug) {
+				printf( 
+					"\n---\n%s\n---\n",
+					str_in);
+			}
 
-		if (is_debug) {
-			fprintf(stderr, 
-				"\n---\n%s\n---\n",
-				json_object_to_json_string_ext(obj,
-								JSON_C_TO_STRING_SPACED |
-								JSON_C_TO_STRING_PRETTY));
-		}
-		
-		if (send_requ(obj, response_obj, channel)) {
+			struct json_object *obj = NULL;
+			struct json_object *response_obj = json_object_new_object();
+			obj = json_tokener_parse(str_in);
 
-			json_object_object_add(obj, "response", response_obj);
-		
+			free(str_in);
+
 			if (is_debug) {
 				fprintf(stderr, 
-					"result\n---\n%s\n---\n",
+					"\n---\n%s\n---\n",
 					json_object_to_json_string_ext(obj,
 									JSON_C_TO_STRING_SPACED |
 									JSON_C_TO_STRING_PRETTY));
 			}
-			FCGX_PutS("Content-type: application/json\r\n", request.out);
-			FCGX_PutS("\r\n", request.out);
-			FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
-			printf("query sucses\n");
-		} else {
-			FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-			if (is_debug) {
-				fprintf(stderr, "Status: 400 Bad Request\n");
-			}
-		}
+		
+			if (send_requ(obj, response_obj, channel)) {
 
-		/* закрыть текущее соединение */
-		FCGX_Finish_r(&request);
-		json_object_put(obj);
-		printf("query complete\n");
+				json_object_object_add(obj, "response", response_obj);
+		
+				if (is_debug) {
+					fprintf(stderr, 
+						"result\n---\n%s\n---\n",
+						json_object_to_json_string_ext(obj,
+										JSON_C_TO_STRING_SPACED |
+										JSON_C_TO_STRING_PRETTY));
+				}
+				FCGX_PutS("Content-type: application/json\r\n", request.out);
+				FCGX_PutS("\r\n", request.out);
+				FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
+				printf("query sucses\n");
+			} else {
+				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
+				if (is_debug) {
+					fprintf(stderr, "Status: 400 Bad Request\n");
+				}
+			}
+
+			/* закрыть текущее соединение */
+			FCGX_Finish_r(&request);
+			json_object_put(obj);
+			printf("query complete\n");
+		}
 	}
 	return NULL;
 }

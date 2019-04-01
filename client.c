@@ -59,6 +59,7 @@ int main(int ac, char *av[]) {
 
 		free_dns_response_s(resp);
 		printf("\n");
+		fprintf(output_file, "\n");
 	}
 
 	fclose(input_file);
