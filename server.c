@@ -192,63 +192,62 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 void get_send_request(FCGX_Request request, ares_channel channel) {
 
 	char *str_len_content = FCGX_GetParam("CONTENT_LENGTH", request.envp);
-			if (str_len_content == NULL) {
-				if (is_debug) {
-					fprintf(stderr, "Status: 400 Bad Request\n");
-				}
-				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-				return;
-			}
-			int in_size = atoi(str_len_content);
-			char *str_in = NULL;
-			str_in = calloc(in_size + 1, sizeof(char));
-			FCGX_GetStr(str_in, in_size, request.in);
-			str_in[in_size] = '\0';
+	if (str_len_content == NULL) {
+		if (is_debug) {
+			fprintf(stderr, "Status: 400 Bad Request\n");
+		}
+		FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
+		return;
+	}
+	int in_size = atoi(str_len_content);
+	char *str_in = NULL;
+	str_in = calloc(in_size + 1, sizeof(char));
+	FCGX_GetStr(str_in, in_size, request.in);
+	str_in[in_size] = '\0';
+	if (is_debug) {
+		printf( 
+			"\n---\n%s\n---\n",
+			str_in);
+	}
 
-			if (is_debug) {
-				printf( 
-					"\n---\n%s\n---\n",
-					str_in);
-			}
+	struct json_object *obj = NULL;
+	struct json_object *response_obj = json_object_new_object();
+	obj = json_tokener_parse(str_in);
+	
+	free(str_in);
 
-			struct json_object *obj = NULL;
-			struct json_object *response_obj = json_object_new_object();
-			obj = json_tokener_parse(str_in);
+	if (is_debug) {
+		fprintf(stderr, 
+			"\n---\n%s\n---\n",
+			json_object_to_json_string_ext(obj,
+							JSON_C_TO_STRING_SPACED |
+							JSON_C_TO_STRING_PRETTY));
+	}
+	
+	if (send_requ(obj, response_obj, channel)) {
 
-			free(str_in);
-
-			if (is_debug) {
-				fprintf(stderr, 
-					"\n---\n%s\n---\n",
-					json_object_to_json_string_ext(obj,
-									JSON_C_TO_STRING_SPACED |
-									JSON_C_TO_STRING_PRETTY));
-			}
+		json_object_object_add(obj, "response", response_obj);
 		
-			if (send_requ(obj, response_obj, channel)) {
+		if (is_debug) {
+			fprintf(stderr, 
+				"result\n---\n%s\n---\n",
+				json_object_to_json_string_ext(obj,
+								JSON_C_TO_STRING_SPACED |
+								JSON_C_TO_STRING_PRETTY));
+		}
+		FCGX_PutS("Content-type: application/json\r\n", request.out);
+		FCGX_PutS("\r\n", request.out);
+		FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
+		printf("query sucses\n");
+	} else {
+		FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
+		if (is_debug) {
+			fprintf(stderr, "Status: 400 Bad Request\n");
+		}
+		json_object_put(response_obj);
+	}
 
-				json_object_object_add(obj, "response", response_obj);
-		
-				if (is_debug) {
-					fprintf(stderr, 
-						"result\n---\n%s\n---\n",
-						json_object_to_json_string_ext(obj,
-										JSON_C_TO_STRING_SPACED |
-										JSON_C_TO_STRING_PRETTY));
-				}
-				FCGX_PutS("Content-type: application/json\r\n", request.out);
-				FCGX_PutS("\r\n", request.out);
-				FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
-				printf("query sucses\n");
-			} else {
-				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-				if (is_debug) {
-					fprintf(stderr, "Status: 400 Bad Request\n");
-				}
-				json_object_put(response_obj);
-			}
-
-			json_object_put(obj);
+	json_object_put(obj);
 }
 
 static void *handler_dns_request(void *arg) {
@@ -308,72 +307,6 @@ static void *handler_dns_request(void *arg) {
 			get_send_request(request, channel);
 
 			FCGX_Finish_r(&request);
-/*
-
-
-			char *str_len_content = FCGX_GetParam("CONTENT_LENGTH", request.envp);
-			if (str_len_content == NULL) {
-				if (is_debug) {
-					fprintf(stderr, "Status: 400 Bad Request\n");
-				}
-				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-				FCGX_Finish_r(&request);
-				return;
-			}
-			int in_size = atoi(str_len_content);
-			char *str_in = NULL;
-			str_in = calloc(in_size + 1, sizeof(char));
-			FCGX_GetStr(str_in, in_size, request.in);
-			str_in[in_size] = '\0';
-
-			if (is_debug) {
-				printf( 
-					"\n---\n%s\n---\n",
-					str_in);
-			}
-
-			struct json_object *obj = NULL;
-			struct json_object *response_obj = json_object_new_object();
-			obj = json_tokener_parse(str_in);
-
-			free(str_in);
-
-			if (is_debug) {
-				fprintf(stderr, 
-					"\n---\n%s\n---\n",
-					json_object_to_json_string_ext(obj,
-									JSON_C_TO_STRING_SPACED |
-									JSON_C_TO_STRING_PRETTY));
-			}
-		
-			if (send_requ(obj, response_obj, channel)) {
-
-				json_object_object_add(obj, "response", response_obj);
-		
-				if (is_debug) {
-					fprintf(stderr, 
-						"result\n---\n%s\n---\n",
-						json_object_to_json_string_ext(obj,
-										JSON_C_TO_STRING_SPACED |
-										JSON_C_TO_STRING_PRETTY));
-				}
-				FCGX_PutS("Content-type: application/json\r\n", request.out);
-				FCGX_PutS("\r\n", request.out);
-				FCGX_PutS(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), request.out);
-				printf("query sucses\n");
-			} else {
-				FCGX_PutS("Status: 400 Bad Request\r\n", request.out);
-				if (is_debug) {
-					fprintf(stderr, "Status: 400 Bad Request\n");
-				}
-				json_object_put(response_obj);
-			}
-
-			
-			FCGX_Finish_r(&request);
-			json_object_put(obj);
-
-*/
 				
 			printf("query complete\n");
 		}
