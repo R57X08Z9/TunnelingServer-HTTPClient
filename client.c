@@ -52,9 +52,12 @@ int main(int ac, char *av[]) {
 				fprintf(output_file, "%s ", resp->answer[i]);
 				printf("%s ", resp->answer[i]);
 			} 
-		} else {
+		} else if (resp->status == 1) {
 			fprintf(output_file, "%s", resp->error);
-			printf("%s\n", resp->error);
+			printf("%s", resp->error);
+		} else {
+			fprintf(output_file, "incorrect input_output data");
+			printf("incorrect input_output data");
 		}
 
 		free_dns_response_s(resp);

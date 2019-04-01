@@ -40,7 +40,7 @@ void send_dns_query(dns_response_t *res, const char *dns, const char *type, cons
 
 	int is_error = 0;
 	int status = 1;
-	int status_query;
+	int status_query = -1;
 	int p_str_len;
 	
 	const char *p_str = NULL;
@@ -66,6 +66,7 @@ void send_dns_query(dns_response_t *res, const char *dns, const char *type, cons
 	}
 
 	if (!is_error) {
+		
 		curl_easy_setopt(curl_handle, CURLOPT_URL, url);
 		curl_easy_setopt(curl_handle, CURLOPT_PORT, port);
 
@@ -91,7 +92,7 @@ void send_dns_query(dns_response_t *res, const char *dns, const char *type, cons
 	}
 
 	if (!is_error) {
-	status = json_object_object_get_ex(obj, "type", &sub_obj);
+		status = json_object_object_get_ex(obj, "type", &sub_obj);
 		if (status == 0) {
 			fprintf(stderr, "\"type\" not found\n");
 			is_error = 1;
