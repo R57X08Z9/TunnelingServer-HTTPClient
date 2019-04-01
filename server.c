@@ -54,13 +54,16 @@ static void callback_a(void *arg, int status, int timeouts, unsigned char *abuf,
 			free(naddrttls);
 		} else {
 			json_object_object_add(arg, "status", json_object_new_int(1));
+			json_object_object_add(arg, "error", json_object_new_string("ares parse not success"));
 			printf("callback can't parse answer\n");
 			fprintf(stderr, "parse error: %s\n", ares_strerror(status));
 		}
 
 		ares_free_hostent(host);
+		free(naddrttls);
 	} else {
 		json_object_object_add(arg, "status", json_object_new_int(1));
+		json_object_object_add(arg, "error", json_object_new_string("status ares not success"));
 		printf("query faild\n");
 		fprintf(stderr, "query error: %s\n", ares_strerror(status));
 	}
@@ -88,13 +91,15 @@ static void callback_txt(void *arg, int status, int timeouts, unsigned char *abu
 		}
 		if (status_pars == ARES_SUCCESS) {
 			struct json_object *obj = json_object_new_array();
-			json_object_object_add(arg, "status", json_object_new_int(0));
-			json_object_object_add(arg, "answer", obj);
 			if (txt_out) {
 				answer_txt_to_json_array(txt_out, obj);
 			}
+			json_object_object_add(arg, "status", json_object_new_int(0));
+			json_object_object_add(arg, "answer", obj);
+			
 		} else {
 			json_object_object_add(arg, "status", json_object_new_int(1));
+			json_object_object_add(arg, "error", json_object_new_string("ares parse not success"));
 			printf("callback can't parse answer");
 			fprintf(stderr, "parse error: %s\n", ares_strerror(status));
 		}
@@ -102,6 +107,7 @@ static void callback_txt(void *arg, int status, int timeouts, unsigned char *abu
 		ares_free_data(txt_out);
 	} else {
 		json_object_object_add(arg, "status", json_object_new_int(1));
+		json_object_object_add(arg, "error", json_object_new_string("status ares not success"));
 		printf("query faild\n");
 		fprintf(stderr, "query error: %s\n", ares_strerror(status));
 	}
@@ -122,7 +128,7 @@ static void wait_ares(ares_channel channel) {
 		tvp = ares_timeout(channel, &tvmax, &tv);
 		count = select(nfds, &readers, &writers, NULL, tvp);
 		ares_process(channel, &readers, &writers);
-		
+		free(tvp);
 	}
 }
 
@@ -137,6 +143,8 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 
 	status = json_object_object_get_ex(obj_in, "dns", &sub_obj);
 	if (status == 0) {
+		json_object_object_add(response_obj, "status", json_object_new_int(1));
+		json_object_object_add(response_obj, "error", json_object_new_string("dns query not found"));
 		is_error = 1;
 	}
 	dns_query = json_object_get_string(sub_obj);
@@ -144,6 +152,8 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 	if (!is_error) {
 		status = json_object_object_get_ex(obj_in, "type", &sub_obj);
 		if (status == 0) {
+			json_object_object_add(response_obj, "status", json_object_new_int(1));
+			json_object_object_add(response_obj, "error", json_object_new_string("type query not found"));
 			is_error = 1;
 		}
 		type_query = json_object_get_string(sub_obj);
@@ -172,7 +182,7 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 		}
 
 		if (is_debug) {
-			fprintf(stderr, "wait_ares complit\nstatus: %d\n", status);
+			fprintf(stderr, "wait_ares complete\nstatus: %d\n", status);
 		}
 	}
 	if (is_error) {
@@ -180,6 +190,8 @@ int send_requ(struct json_object *obj_in, struct json_object *response_obj, ares
 	} else {
 		return status;
 	}
+	free(type_query);
+	free(dns_query);
 }
 
 static void *handler_dns_request(void *arg) {
@@ -295,6 +307,7 @@ static void *handler_dns_request(void *arg) {
 			/* закрыть текущее соединение */
 			FCGX_Finish_r(&request);
 			json_object_put(obj);
+			json_object_put(response_obj);
 			printf("query complete\n");
 		}
 	}
